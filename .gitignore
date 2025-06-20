@@ -197,3 +197,12 @@ cython_debug/
 
 # Visual Studio Code
 .vscode/
+
+# for Paradigm Cyber
+cyber1-allow-list.csv
+
+# to not include any reporting files
+url_reachability_report.html
+
+# any test csv files
+test-*.csv
