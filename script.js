@@ -6,9 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const corsHelpButton = document.getElementById('corsHelpButton');
     const clearButton = document.getElementById('clearButton');
     const loadingIndicator = document.getElementById('loadingIndicator');
-    const reportContainer = document.getElementById('reportContainer');
-
-    // IMPORTANT: Replace this with the actual URL of your Google Sheet published as CSV.
+    const reportContainer = document.getElementById('reportContainer');    // IMPORTANT: Replace this with the actual URL of your Google Sheet published as CSV.
     // How to get this URL:
     // 1. Open your Google Sheet.
     // 2. Go to File > Share > Publish to web.
@@ -16,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. For "Publish as:", choose "Comma-separated values (.csv)".
     // 5. Copy the generated URL. It will look something like:
     //    https://docs.google.com/spreadsheets/d/e/2PACX-1vR-random-string-here/pub?output=csv
-    const DEFAULT_GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1Zt8Kx8y-placeholder-sheet-id-for-testing-only/pub?output=csv'; // REPLACE ME
+    const DEFAULT_GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1W6139pV4zuGTrswAyaBSKD09eYDYjE4wKZsjKqueAEQ/pub?output=csv';
 
     /**
      * Parses CSV content and extracts URLs from the 'URL' column.
@@ -49,24 +47,46 @@ document.addEventListener('DOMContentLoaded', () => {
      * Parses URLs from a textarea, one per line.
      * @param {string} text - The raw text content from the textarea.
      * @returns {string[]} An array of URLs.
-     */
-    function parseTextArea(text) {
+     */    function parseTextArea(text) {
         return text.split(/\r?\n/).map(url => url.trim()).filter(url => url !== '');
-    }    /**
+    }
+
+    /**
+     * Gets the appropriate CSS class for a status value.
+     * @param {string} status - The status string.
+     * @returns {string} The CSS class name.
+     */
+    function getStatusClass(status) {
+        if (status.includes('HTTP Warning')) {
+            return 'status-http-warning';
+        } else if (status === 'Fully Accessible' || status === 'Partially Accessible' || 
+                   status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable') {
+            return 'status-reachable';
+        } else if (status === 'Not Reachable') {
+            return 'status-not-reachable';
+        } else if (status === 'Error') {
+            return 'status-error';
+        } else {
+            return 'status-skipped';
+        }
+    }/**
      * Checks the reachability of a given URL using progressive testing methods from within the school network.
      * @param {string} url - The URL to check.
      * @param {number} timeout - The maximum number of milliseconds to wait for a response.
      * @returns {Promise<object>} A promise that resolves to an object containing URL check results.
-     */
-    async function checkUrl(url, timeout = 10000) {
+     */    async function checkUrl(url, timeout = 10000) {
         const result = {
             url: url,
             status: "Error",
             http_status: "N/A",
             message: "An unexpected error occurred.",
             method: "Unknown",
-            details: []
+            details: [],
+            isHttpOnly: false
         };
+
+        // Check if URL uses HTTP (insecure)
+        result.isHttpOnly = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://');
 
         // Add detailed logging function
         const addLog = (step, success, details) => {
@@ -74,6 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         addLog("Starting connectivity test", true, "Testing from school network");
+
+        // Check for HTTP-only URLs early
+        if (result.isHttpOnly) {
+            addLog("Security check", false, "⚠️ HTTP-only URL detected - browsers may block or show warnings");
+        }
 
         // Method 1: Try favicon loading technique for basic connectivity
         try {
@@ -117,24 +142,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         mode: 'no-cors',
                         signal: controller.signal
                     });
-                    clearTimeout(id);
-
-                    if (response) {
+                    clearTimeout(id);                    if (response) {
                         addLog("Full content test", true, "Page load completed successfully");
-                        result.status = "Fully Accessible";
+                        if (result.isHttpOnly) {
+                            result.status = "Fully Accessible (HTTP Warning)";
+                            result.message = "⚠️ Site accessible but uses insecure HTTP. Modern browsers may block or show warnings.";
+                        } else {
+                            result.status = "Fully Accessible";
+                            result.message = "Site fully accessible from school network";
+                        }
                         result.http_status = "200 (inferred)";
-                        result.message = "Site fully accessible from school network";
                         result.method = "Full Load + Favicon";
                         return result;
                     }
                 } catch (fetchError) {
                     addLog("Full content test", false, `Failed: ${fetchError.message}`);
+                }                // Fallback: Favicon worked but full load didn't
+                if (result.isHttpOnly) {
+                    result.status = "Partially Accessible (HTTP Warning)";
+                    result.message = "⚠️ Domain reachable but uses insecure HTTP. Full content may be restricted and browsers may show warnings.";
+                } else {
+                    result.status = "Partially Accessible";
+                    result.message = "Domain reachable but full content may be restricted";
                 }
-
-                // Fallback: Favicon worked but full load didn't
-                result.status = "Partially Accessible";
                 result.http_status = "Favicon OK";
-                result.message = "Domain reachable but full content may be restricted";
                 result.method = "Favicon Only";
                 return result;
             } else {
@@ -155,13 +186,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 mode: 'no-cors',
                 signal: controller.signal
             });
-            clearTimeout(id);
-
-            if (response) {
+            clearTimeout(id);            if (response) {
                 addLog("Direct fetch test", true, "Request completed");
-                result.status = "Possibly Reachable";
+                if (result.isHttpOnly) {
+                    result.status = "Possibly Reachable (HTTP Warning)";
+                    result.message = "⚠️ Request completed but uses insecure HTTP. Modern browsers may block or show warnings.";
+                } else {
+                    result.status = "Possibly Reachable";
+                    result.message = "Request completed from school network (limited info due to CORS)";
+                }
                 result.http_status = "No-CORS Response";
-                result.message = "Request completed from school network (limited info due to CORS)";
                 result.method = "No-CORS Fetch";
             } else {
                 addLog("Direct fetch test", false, "No response received");
@@ -262,10 +296,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loadingIndicator.classList.add('hidden'); // Hide loading indicator        // Generate summary
         let reachableCount = 0;
+        let httpWarningCount = 0;
         let notReachableCount = 0;
         let errorCount = 0;
-        let skippedCount = 0;        results.forEach(r => {
-            if (r.status === "Fully Accessible" || r.status === "Partially Accessible" || r.status === "Reachable" || r.status === "Likely Reachable" || r.status === "Possibly Reachable") {
+        let skippedCount = 0;
+
+        results.forEach(r => {
+            if (r.status.includes("HTTP Warning")) {
+                httpWarningCount++;
+                reachableCount++; // HTTP warnings are still reachable
+            } else if (r.status === "Fully Accessible" || r.status === "Partially Accessible" || r.status === "Reachable" || r.status === "Likely Reachable" || r.status === "Possibly Reachable") {
                 reachableCount++;
             } else if (r.status === "Not Reachable" || r.status === "Blocked") {
                 notReachableCount++;
@@ -274,15 +314,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (r.status === "Skipped") {
                 skippedCount++;
             }
-        });
-
-        const totalUrls = results.length; // Use results.length to account for skipped
+        });        const totalUrls = results.length; // Use results.length to account for skipped
 
         let summaryHtml = `
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Summary of Results</h2>
             <ul class="list-disc list-inside text-gray-700 mb-6">
                 <li>Total URLs processed: ${totalUrls}</li>
                 <li>Reachable URLs: <span class="text-green-700 font-semibold">${reachableCount}</span></li>
+                ${httpWarningCount > 0 ? `<li>URLs with HTTP Warnings: <span class="text-amber-700 font-semibold">${httpWarningCount}</span> ⚠️</li>` : ''}
                 <li>Not Reachable URLs: <span class="text-red-700 font-semibold">${notReachableCount}</span></li>
                 <li>URLs with Errors: <span class="text-orange-700 font-semibold">${errorCount}</span></li>
                 <li>Skipped (Empty) URLs: <span class="text-gray-500 font-semibold">${skippedCount}</span></li>
@@ -290,13 +329,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Detailed Results</h2>
         `;
         // Set innerHTML for summary, then append table
-        reportContainer.innerHTML = summaryHtml;
-
-        // Generate detailed table
-        if (results.length > 0) {            const tableHtml = `
+        reportContainer.innerHTML = summaryHtml;        // Generate detailed table
+        if (results.length > 0) {
+            const tableHtml = `
                 <div class="table-container">
                     <table class="results-table divide-y divide-gray-200">
-                        <thead class="bg-gray-50">                            <tr>
+                        <thead class="bg-gray-50">
+                            <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">URL</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
@@ -304,32 +343,36 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Details</th>
                             </tr>
-                        </thead><tbody class="bg-white divide-y divide-gray-200">
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
                             ${results.map(r => {
                                 const truncated = truncateUrl(r.url);
                                 const needsTooltip = truncated !== r.url;
-                                return `                                <tr>                                    <td class="px-6 py-4 text-sm font-medium text-gray-900 table-cell-url">
+                                return `
+                                <tr>
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900 table-cell-url">
                                         <div class="group relative">
                                             <span class="${needsTooltip ? 'url-truncated' : ''}" 
                                                   ${needsTooltip ? `onmouseover="showTooltip(event, '${r.url.replace(/'/g, '\\\'')}')" onmouseout="hideTooltip()"` : ''}>
                                                 ${truncated}
                                             </span>
                                         </div>
-                                    </td>                                    <td class="px-6 py-4 whitespace-nowrap text-sm ${r.status === 'Fully Accessible' || r.status === 'Partially Accessible' || r.status === 'Reachable' || r.status === 'Likely Reachable' || r.status === 'Possibly Reachable' ? 'status-reachable' : r.status === 'Not Reachable' ? 'status-not-reachable' : r.status === 'Error' ? 'status-error' : 'status-skipped'}">${r.status}</td>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm ${getStatusClass(r.status)}">${r.status}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-xs text-blue-600 font-mono">${r.method || 'N/A'}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${r.http_status}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500 table-cell-message">${r.message}</td>                                    <td class="px-6 py-4 whitespace-nowrap text-sm">                                        ${r.details && r.details.length > 0 ? 
+                                    <td class="px-6 py-4 text-sm text-gray-500 table-cell-message">${r.message}</td>                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        ${r.details && r.details.length > 0 ? 
                                             `<button onclick="showDetailedLogs(${JSON.stringify(r).replace(/"/g, '&quot;')}, '${r.url.replace(/'/g, '\\\'')}')" 
                                              class="text-blue-600 hover:text-blue-800 underline text-xs block mb-1">
                                                 View Logs
                                              </button>` : 
                                             '<span class="text-gray-400 text-xs block mb-1">No logs</span>'
-                                        }
-                                        ${r.status !== 'Fully Accessible' && r.status !== 'Skipped' ? 
+                                        }${!r.status.includes('Fully Accessible') && r.status !== 'Skipped' ? 
                                             `<button onclick="testManualAccess('${r.url.replace(/'/g, '\\\'')}')" 
                                              class="manual-test-btn hover:bg-yellow-600 text-white text-xs px-2 py-1 rounded block">
-                                                ${r.status === 'Partially Accessible' ? 'Test Full Access' : 
-                                                  r.status === 'Possibly Reachable' ? 'Verify Access' : 
+                                                ${r.status.includes('Partially Accessible') ? 'Test Full Access' : 
+                                                  r.status.includes('Possibly Reachable') ? 'Verify Access' : 
                                                   r.status === 'Not Reachable' ? 'Retry Test' : 'Manual Check'}
                                              </button>` : ''
                                         }
@@ -845,10 +888,15 @@ function monitorIframeLoad(url) {
             if (bodyContent.length > 100) { // Arbitrary threshold for "real" content
                 statusElement.textContent = 'Loaded Successfully!';
                 statusElement.className = 'text-sm font-semibold text-green-600';
-                
-                // Auto-update the result in the table
+                  // Auto-update the result in the table
                 setTimeout(() => {
-                    updateTableResult(url, 'Fully Accessible', 'Manual Test', 'Page loaded in iframe', 'Site fully accessible from school network');
+                    const finalStatus = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://') 
+                        ? 'Fully Accessible (HTTP Warning)' 
+                        : 'Fully Accessible';
+                    const finalMessage = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://')
+                        ? '⚠️ Site accessible but uses insecure HTTP. Modern browsers may show warnings.'
+                        : 'Site fully accessible from school network';
+                    updateTableResult(url, finalStatus, 'Manual Test', 'Page loaded in iframe', finalMessage);
                 }, 1000);
             } else {
                 statusElement.textContent = 'Page appears empty or blocked';
@@ -862,10 +910,15 @@ function monitorIframeLoad(url) {
         // Cross-origin restriction - iframe loaded but we can't access content
         statusElement.textContent = 'Loaded (cross-origin - likely working)';
         statusElement.className = 'text-sm font-semibold text-blue-600';
-        
-        // Assume it's working if we get cross-origin restriction
+          // Assume it's working if we get cross-origin restriction
         setTimeout(() => {
-            updateTableResult(url, 'Fully Accessible', 'Manual Test + CORS', 'Cross-origin access (normal)', 'Site accessible but CORS prevents iframe inspection');
+            const finalStatus = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://') 
+                ? 'Fully Accessible (HTTP Warning)' 
+                : 'Fully Accessible';
+            const finalMessage = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://')
+                ? '⚠️ Site accessible but uses insecure HTTP. Modern browsers may show warnings.'
+                : 'Site accessible but CORS prevents iframe inspection';
+            updateTableResult(url, finalStatus, 'Manual Test + CORS', 'Cross-origin access (normal)', finalMessage);
         }, 1000);
     }
 }
@@ -904,14 +957,16 @@ function handleIframeError(url) {
  */
 function reportManualResult(url, resultType) {
     let newStatus, newMethod, newHttpStatus, newMessage, messageText;
-    
-    switch (resultType) {
+      switch (resultType) {
         case 'fully':
-            newStatus = 'Fully Accessible';
+            const isHttpOnly = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://');
+            newStatus = isHttpOnly ? 'Fully Accessible (HTTP Warning)' : 'Fully Accessible';
             newMethod = 'Manual Confirmation';
             newHttpStatus = 'User Verified';
-            newMessage = 'User confirmed site works completely from school network';
-            messageText = `Updated: ${url} marked as Fully Accessible based on manual test`;
+            newMessage = isHttpOnly 
+                ? '⚠️ User confirmed site works but uses insecure HTTP. Modern browsers may show warnings.'
+                : 'User confirmed site works completely from school network';
+            messageText = `Updated: ${url} marked as ${newStatus} based on manual test`;
             break;
         case 'partial':
             newStatus = 'Partially Accessible';
@@ -957,31 +1012,25 @@ function updateTableResult(url, newStatus, newMethod, newHttpStatus, newMessage)
             if (cells.length >= 5) {                // Update status cell with new styling
                 const statusCell = cells[1];
                 statusCell.textContent = newStatus;
-                statusCell.className = `px-6 py-4 whitespace-nowrap text-sm ${
-                    newStatus === 'Fully Accessible' ? 'status-reachable' : 
-                    newStatus === 'Partially Accessible' ? 'status-reachable' :
-                    newStatus === 'Blocked' || newStatus === 'Not Reachable' ? 'status-not-reachable' : 'status-error'
-                }`;
+                statusCell.className = `px-6 py-4 text-sm ${getStatusClass(newStatus)}`;
                 
                 // Update other cells
                 cells[2].textContent = newMethod;
                 cells[3].textContent = newHttpStatus;
                 cells[4].textContent = newMessage;
-                
-                // Update the test button in details cell
+                  // Update the test button in details cell
                 const detailsCell = cells[5];
-                if (newStatus === 'Fully Accessible') {
+                if (newStatus.includes('Fully Accessible')) {
                     // Remove the manual test button since it's now confirmed working
                     const testButton = detailsCell.querySelector('button[onclick*="testManualAccess"]');
                     if (testButton) {
                         testButton.remove();
                     }
-                } else {
-                    // Update button text based on new status
+                } else {                    // Update button text based on new status
                     const testButton = detailsCell.querySelector('button[onclick*="testManualAccess"]');
                     if (testButton) {
-                        const buttonText = newStatus === 'Partially Accessible' ? 'Test Full Access' : 
-                                         newStatus === 'Possibly Reachable' ? 'Verify Access' : 
+                        const buttonText = newStatus.includes('Partially Accessible') ? 'Test Full Access' : 
+                                         newStatus.includes('Possibly Reachable') ? 'Verify Access' : 
                                          newStatus === 'Not Reachable' ? 'Retry Test' : 
                                          newStatus === 'Blocked' ? 'Retest' : 'Manual Check';
                         testButton.textContent = buttonText;
