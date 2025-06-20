@@ -21,6 +21,7 @@ The main tool is a browser-based application (`index.html`) that provides an eas
 - **Manual Verification**: Built-in iframe testing for uncertain results
 - **Detailed Logging**: Step-by-step logs showing exactly what was tested and why
 - **User-Friendly Reports**: Clear, color-coded results with explanations
+- **HTTP Security Detection**: Automatically flags HTTP-only sites that may cause browser warnings
 - **No Extensions Required**: Works entirely within the browser without additional software
 
 ### How It Works
@@ -29,7 +30,18 @@ The tool uses several testing methods to determine accessibility:
 
 1. **Favicon Test**: Attempts to load the site's favicon.ico file
 2. **No-CORS Fetch**: Tests direct connectivity while respecting browser security
-3. **Manual Testing**: Provides iframe-based verification for uncertain results
+3. **HTTP Security Check**: Identifies URLs using insecure HTTP protocol
+4. **Manual Testing**: Provides iframe-based verification for uncertain results
+
+### ⚠️ HTTP Security Warnings
+
+The tool automatically detects and flags websites using HTTP (instead of HTTPS) protocol. These sites may cause issues in modern school environments:
+
+- **Browser Warnings**: Chrome, Firefox, and other browsers increasingly warn users about HTTP sites
+- **Mixed Content Issues**: HTTPS school portals may block HTTP resources
+- **Security Policies**: Many schools block HTTP sites as a security measure
+
+**Recommendation**: When possible, use HTTPS versions of educational websites or request site administrators to enable HTTPS.
 
 ### Status Meanings
 
@@ -38,6 +50,7 @@ The tool uses several testing methods to determine accessibility:
 - **🔵 Possibly Reachable**: Connection attempted but limited by browser security
 - **🔴 Not Reachable**: Site appears blocked or unavailable from school network
 - **⏱️ Timeout**: Site is very slow or partially blocked
+- **⚠️ HTTP Warning**: Site is accessible but uses insecure HTTP protocol that may cause browser warnings
 
 ## 🚀 Getting Started
 
@@ -103,11 +116,20 @@ For advanced users or situations where the web tool has limitations, a Python sc
 
 ```bash
 cd python-script
-python url-check.py
+python url-check.py                           # Test all predefined Google Sheets
+python url-check.py --csv ../test-urls.csv    # Test custom CSV file  
+python url-check.py --sheet cyber1            # Test specific Google Sheet
 ```
+
+The Python script provides additional features:
+- **Multiple Google Sheets**: Can process multiple predefined sheets (cyber1, cyber2, cyber3)
+- **Detailed HTML Reports**: Generates professional styled reports with summary cards
+- **HTTP Detection**: Flags insecure HTTP-only URLs with warnings
+- **Command Line Options**: Supports custom CSV files and specific sheets
 
 The Python script avoids browser security restrictions but requires:
 - Python 3.x installed
+- `requests` library (`pip install requests`)
 - Network access from the machine running the script
 - Command-line interface familiarity
 
@@ -131,17 +153,20 @@ Modify `style.css` to match your school's branding or accessibility requirements
 - Test if lesson plan websites are accessible before class
 - Verify educational resources work from school computers
 - Identify alternative resources when primary sites are blocked
+- Spot potential browser security warnings for HTTP sites
 
 ### For IT Administrators
 - Audit which educational sites are accessible
 - Generate reports for firewall policy updates
 - Test connectivity after network changes
 - Provide evidence for unblocking educational resources
+- Identify HTTP sites that may need security policy updates
 
 ### For Curriculum Coordinators
 - Ensure digital resources in curriculum guides are accessible
 - Test new educational platforms before district-wide adoption
 - Verify accessibility across different school buildings
+- Identify security concerns with HTTP-only educational sites
 
 ## 🔒 Privacy & Security
 
@@ -161,6 +186,12 @@ Modify `style.css` to match your school's branding or accessibility requirements
 - Verify the URL is correct and currently online
 - Check if the site requires specific protocols (HTTP vs HTTPS)
 - Contact IT team if educational resource appears incorrectly blocked
+
+### HTTP Warning Results
+- Site works but uses insecure HTTP protocol
+- Modern browsers may show security warnings to users
+- Consider finding HTTPS alternatives or requesting site upgrades
+- Test in actual classroom environment to verify student experience
 
 ### Tool Not Working
 - Ensure JavaScript is enabled in your browser
