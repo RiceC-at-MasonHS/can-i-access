@@ -54,7 +54,7 @@ The tool automatically detects and flags websites using HTTP (instead of HTTPS) 
 
 ## 🚀 Getting Started
 
-1. **Open the Tool**: Open `index.html` in any modern web browser
+1. **Open the Tool**: Open the [GitHub Page](https://ricec-at-masonhs.github.io/can-i-access/) in any modern web browser
 2. **Add URLs**: Either:
    - Upload a CSV file with a 'URL' column
    - Paste URLs directly (one per line)
