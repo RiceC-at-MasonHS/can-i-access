@@ -48,14 +48,11 @@ except ImportError:
     print("=" * 60)
     sys.exit(1)
 
-# Default and predefined Google Sheet CSV URLs
-DEFAULT_GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1W6139pV4zuGTrswAyaBSKD09eYDYjE4wKZsjKqueAEQ/pub?output=csv'
-
 # Predefined sheet URLs for different categories
 PREDEFINED_SHEETS = {
-    'cyber1': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?output=csv',  # Currently same as default
-    'cyber2': 'https://docs.google.com/spreadsheets/d/PLACEHOLDER_CYBER2_SHEET_ID/pub?output=csv',  # TODO: Replace with actual sheet
-    'cyber3': 'https://docs.google.com/spreadsheets/d/PLACEHOLDER_CYBER3_SHEET_ID/pub?output=csv'   # TODO: Replace with actual sheet
+    'cyber1': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?gid=0&single=true&output=csv',  # filled June 2025
+    'cyber2': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?gid=1898941805&single=true&output=csv',  # TODO: Populate sheet with URLs
+    'cyber3': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?gid=1535267557&single=true&output=csv'   # TODO: Populate sheet with URLs
 }
 
 def find_url_column(fieldnames):
@@ -315,7 +312,7 @@ def generate_report(results):
     total_urls = len(results)
     
     # Generate breakdown by source
-    sources = set(r.get("sheet_source", "Single Source") for r in results)
+    sources = set(r.get("sheet_source", "Unknown") for r in results)
     has_multiple_sheets = len(sources) > 1 or any("sheet_source" in r for r in results)
     
     # HTML with embedded CSS
@@ -575,21 +572,27 @@ def generate_report(results):
         <div class="summary-card">
             <h3>Total URLs</h3>
             <div class="number">{total_urls}</div>
+            <div class="subtitle">Tested</div>
         </div>
         <div class="summary-card success">
-            <h3>Reachable</h3>
-            <div class="number">{reachable_count}</div>
-        </div>
-        <div class="summary-card danger">
-            <h3>Not Reachable</h3>
-            <div class="number">{not_reachable_count}</div>
-        </div>        <div class="summary-card warning">
-            <h3>Errors</h3>
-            <div class="number">{error_count}</div>
+            <h3>Fully Accessible</h3>
+            <div class="number">{reachable_count - http_warning_count}</div>
+            <div class="subtitle>{((reachable_count - http_warning_count) / total_urls * 100) if total_urls > 0 else 0:.1f}%</div>
         </div>
         <div class="summary-card warning">
             <h3>HTTP Warnings</h3>
             <div class="number">{http_warning_count}</div>
+            <div class="subtitle>{(http_warning_count / total_urls * 100) if total_urls > 0 else 0:.1f}%</div>
+        </div>
+        <div class="summary-card danger">
+            <h3>Not Reachable</h3>
+            <div class="number">{not_reachable_count}</div>
+            <div class="subtitle>{(not_reachable_count / total_urls * 100) if total_urls > 0 else 0:.1f}%</div>
+        </div>
+        <div class="summary-card warning">
+            <h3>Errors</h3>
+            <div class="number">{error_count}</div>
+            <div class="subtitle">Issues</div>
         </div>
     </div>"""
 
@@ -600,8 +603,8 @@ def generate_report(results):
         <h2>📋 Breakdown by Source</h2>"""
         
         for source in sorted(sources):
-            source_results = [r for r in results if r.get("sheet_source", "Single Source") == source]
-            source_reachable = sum(1 for r in source_results if r["status"] == "Reachable")
+            source_results = [r for r in results if r.get("sheet_source", "Unknown") == source]
+            source_reachable = sum(1 for r in source_results if r["status"] in ["Reachable", "Reachable (HTTP Warning)"])
             source_total = len(source_results)
             success_rate = (source_reachable / source_total * 100) if source_total > 0 else 0
             
@@ -758,31 +761,101 @@ if __name__ == "__main__":
     
     print(f"Quick Summary: {reachable} reachable, {not_reachable} not reachable, {errors} errors")
     
-    # List problematic URLs for quick attention
+    # Enhanced problematic URLs section
     problem_urls = [r for r in checked_urls if r["status"] in ["Not Reachable", "Error"]]
+    http_warning_urls = [r for r in checked_urls if r["status"] == "Reachable (HTTP Warning)"]
     
     if problem_urls:
-        print(f"\n🚨 URLs Requiring Attention ({len(problem_urls)} total):")
+        print(f"\n🚨 URLS REQUIRING ATTENTION ({len(problem_urls)} issues found):")
         print("=" * 60)
         
-        for result in problem_urls:
+        # Group by issue type
+        blocked_urls = [r for r in problem_urls if r["status"] == "Not Reachable"]
+        error_urls = [r for r in problem_urls if r["status"] == "Error"]
+        
+        if blocked_urls:
+            print(f"\n❌ BLOCKED/UNREACHABLE SITES ({len(blocked_urls)}):")
+            for i, result in enumerate(blocked_urls[:10], 1):  # Limit to first 10
+                url = result["url"]
+                source = result.get("sheet_source", "Unknown")
+                message = result["message"]
+                
+                # Truncate URL for display
+                display_url = url if len(url) <= 60 else url[:57] + "..."
+                
+                print(f"  {i:2d}. {display_url}")
+                if source != "Unknown":
+                    print(f"      📂 Source: {source}")
+                # Simplified error message
+                if "Connection Error" in message:
+                    print(f"      🔒 Likely blocked by school firewall")
+                elif "HTTP Error" in message:
+                    print(f"      🌐 Server error or access denied")
+                elif "Timeout" in message:
+                    print(f"      ⏱️  Site too slow or partially blocked")
+                else:
+                    print(f"      ❓ {message}")
+                print()
+            
+            if len(blocked_urls) > 10:
+                print(f"      ... and {len(blocked_urls) - 10} more blocked sites")
+                print()
+        
+        if error_urls:
+            print(f"\n🚨 ERROR CONDITIONS ({len(error_urls)}):")
+            for i, result in enumerate(error_urls[:5], 1):  # Limit to first 5
+                url = result["url"]
+                source = result.get("sheet_source", "Unknown")
+                message = result["message"]
+                
+                display_url = url if len(url) <= 60 else url[:57] + "..."
+                
+                print(f"  {i:2d}. {display_url}")
+                if source != "Unknown":
+                    print(f"      📂 Source: {source}")
+                print(f"      ⚠️  {message}")
+                print()
+            
+            if len(error_urls) > 5:
+                print(f"      ... and {len(error_urls) - 5} more errors")
+                print()
+    
+    # HTTP warnings section
+    if http_warning_urls:
+        print(f"\n⚠️  HTTP SECURITY WARNINGS ({len(http_warning_urls)} sites):")
+        print("=" * 60)
+        print("These sites work but use insecure HTTP connections.")
+        print("Modern browsers may block them or show security warnings.\n")
+        
+        for i, result in enumerate(http_warning_urls[:10], 1):
             url = result["url"]
-            status = result["status"]
             source = result.get("sheet_source", "Unknown")
-            message = result["message"]
             
-            # Truncate URL if too long for terminal display
-            display_url = url if len(url) <= 50 else url[:47] + "..."
+            display_url = url if len(url) <= 60 else url[:57] + "..."
             
-            print(f"❌ {status.upper()}: {display_url}")
+            print(f"  {i:2d}. {display_url}")
             if source != "Unknown":
-                print(f"   Source: {source}")
-            print(f"   Issue: {message}")
+                print(f"      📂 Source: {source}")
+            print(f"      💡 Consider requesting HTTPS version")
             print()
         
-        print("💡 Tip: Check the HTML report for full details and recommendations")
-    else:
-        print("\n✅ Great news! All URLs are reachable from your network.")
+        if len(http_warning_urls) > 10:
+            print(f"      ... and {len(http_warning_urls) - 10} more HTTP sites")
+        
+        print("🔒 Recommendation: Contact site administrators to enable HTTPS")
     
-    print(f"\n📄 Full report available in: {output_filename}")
-    print(f"🔗 Can I Access GitHub: https://github.com/RiceC-at-MasonHS/can-i-access")
+    # Success message
+    if not problem_urls and not http_warning_urls:
+        print(f"\n🎉 EXCELLENT! All {total_processed} URLs are fully accessible and secure!")
+        print("✅ No blocked sites detected")
+        print("🔒 All sites use secure HTTPS connections")
+    elif not problem_urls:
+        print(f"\n✅ GOOD NEWS! All {total_processed} URLs are accessible from your network!")
+        print("⚠️  Some sites have HTTP security warnings (see above)")
+    
+    print("\n" + "=" * 60)
+    print("📄 DETAILED REPORT:")
+    print(f"   📋 Full HTML report: {output_filename}")
+    print(f"   🌐 Open in browser for complete analysis")
+    print(f"   🔗 Can I Access: https://github.com/RiceC-at-MasonHS/can-i-access")
+    print("=" * 60)
