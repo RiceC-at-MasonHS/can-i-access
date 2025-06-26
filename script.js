@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. For "Publish as:", choose "Comma-separated values (.csv)".
     // 5. Copy the generated URL. It will look something like:
     //    https://docs.google.com/spreadsheets/d/e/2PACX-1vR-random-string-here/pub?output=csv
-    const DEFAULT_GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1W6139pV4zuGTrswAyaBSKD09eYDYjE4wKZsjKqueAEQ/pub?output=csv';
+    const DEFAULT_GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?gid=0&single=true&output=csv';
 
     /**
      * Parses CSV content and extracts URLs from the 'URL' column.
@@ -510,12 +510,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCorsHelp() {
         const helpContent = `
             <div class="bg-white rounded-lg shadow-xl max-w-4xl mx-auto p-6">
-                <h2 class="text-2xl font-bold text-gray-900 mb-4">School Network Testing Guide</h2>
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Can I Access? - Testing Guide</h2>
                 
-                <div class="space-y-6">                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                        <h3 class="text-lg font-semibold text-yellow-800 mb-2">What does this tool test?</h3>
-                        <p class="text-yellow-700">This tool tests if websites are accessible from within your school's network. It checks if your school's internet connection and firewall allow access to educational resources that teachers and students need.</p>
-                    </div>                    <div class="bg-green-50 border-l-4 border-green-400 p-4">
+                <div class="space-y-6">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <h3 class="text-lg font-semibold text-yellow-800 mb-2">What does Can I Access test?</h3>
+                        <p class="text-yellow-700">Can I Access tests if websites are accessible from within your school's network. It checks if your school's internet connection and firewall allow access to educational resources that teachers and students need.</p>
+                    </div>
+                    
+                    <div class="bg-green-50 border-l-4 border-green-400 p-4">
                         <h3 class="text-lg font-semibold text-green-800 mb-2">Getting Definitive Results:</h3>
                         <ol class="list-decimal list-inside text-green-700 space-y-2">
                             <li><strong>Manual Testing (Recommended):</strong>
@@ -528,8 +531,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <li><strong>Direct Browser Testing:</strong> Open suspected URLs in new browser tabs</li>
                             <li><strong>Network Team Coordination:</strong> Share results with your school's IT team for policy adjustments</li>
                         </ol>
-                    </div>                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
-                        <h3 class="text-lg font-semibold text-blue-800 mb-2">How This Tool Works:</h3>
+                    </div>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+                        <h3 class="text-lg font-semibold text-blue-800 mb-2">How Can I Access Works:</h3>
                         <ul class="list-disc list-inside text-blue-700 space-y-1">
                             <li>Tests connectivity directly from your school's network</li>
                             <li>Uses favicon loading to check if domains are reachable</li>
@@ -547,6 +552,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             <li><strong>Not Reachable:</strong> Site appears blocked or unavailable from school</li>
                             <li><strong>Timeout:</strong> Site is very slow or partially blocked</li>
                         </ul>
+                    </div>
+                    
+                    <div class="bg-gray-50 border-l-4 border-gray-400 p-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Need More Accuracy?</h3>
+                        <p class="text-gray-700">For the most comprehensive testing, try the <a href="https://github.com/RiceC-at-MasonHS/can-i-access" class="text-blue-600 underline">Python version of Can I Access</a> which provides more detailed network analysis.</p>
                     </div>
                 </div>
 

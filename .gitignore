@@ -203,6 +203,7 @@ cyber1-allow-list.csv
 
 # to not include any reporting files
 url_reachability_report.html
+can-i-access-report.html
 
 # any test csv files
 test-*.csv
