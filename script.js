@@ -25,7 +25,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
         if (lines.length === 0) return [];
 
-        const headers = lines[0].split(',').map(h => h.trim());
+        // Parse CSV more robustly to handle quoted fields
+        const parseCSVLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        // Escaped quote
+                        current += '"';
+                        i++; // Skip next quote
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    // Field separator
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            // Add the last field
+            result.push(current.trim());
+            return result;
+        };
+
+        const headers = parseCSVLine(lines[0]).map(h => h.trim());
         const urlColumnIndex = headers.findIndex(h => h.toLowerCase() === 'url');
 
         if (urlColumnIndex === -1) {
@@ -35,9 +68,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const urls = [];
         for (let i = 1; i < lines.length; i++) {
-            const columns = lines[i].split(',');
+            const columns = parseCSVLine(lines[i]);
             if (columns[urlColumnIndex]) {
-                urls.push(columns[urlColumnIndex].trim());
+                const url = columns[urlColumnIndex].trim();
+                // Debug logging for URL parsing
+                console.log(`Parsed URL from CSV line ${i + 1}:`, url);
+                
+                // Validate that this looks like a URL
+                if (url.startsWith('http://') || url.startsWith('https://') || url.includes('.')) {
+                    urls.push(url);
+                } else {
+                    console.warn(`Skipping invalid URL: "${url}" at line ${i + 1}`);
+                    console.warn(`Full line was:`, lines[i]);
+                    console.warn(`Parsed columns:`, columns);
+                }
             }
         }
         return urls;
@@ -59,8 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function getStatusClass(status) {
         if (status.includes('HTTP Warning')) {
             return 'status-http-warning';
+        } else if (status === 'Video Removed') {
+            return 'status-video-removed';
         } else if (status === 'Fully Accessible' || status === 'Partially Accessible' || 
-                   status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable') {
+                   status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable' ||
+                   status.includes('Video Available')) {
             return 'status-reachable';
         } else if (status === 'Not Reachable') {
             return 'status-not-reachable';
@@ -98,6 +145,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check for HTTP-only URLs early
         if (result.isHttpOnly) {
             addLog("Security check", false, "⚠️ HTTP-only URL detected - browsers may block or show warnings");
+        }
+
+        // PRIORITY CHECK: YouTube-specific video availability check
+        // This runs FIRST for YouTube URLs to catch removed/private videos
+        console.log('Checking if URL is YouTube:', url, 'Result:', isYouTubeUrl(url));
+        if (isYouTubeUrl(url)) {
+            addLog("YouTube check", true, "Checking if YouTube video is available");
+            console.log('Starting priority YouTube check for:', url);
+            
+            try {
+                const youtubeResult = await checkYouTubeVideo(url, timeout);
+                console.log('Priority YouTube check result:', youtubeResult);
+                
+                if (youtubeResult.isRemoved) {
+                    addLog("YouTube check", false, `Video has been removed or is unavailable (${youtubeResult.reason})`);
+                    result.status = "Video Removed";
+                    result.http_status = "404 (Video Not Found)";
+                    result.message = "⚠️ YouTube video has been removed, made private, or is unavailable";
+                    result.method = "YouTube Video Check";
+                    addLog("Test complete", true, `Final status: ${result.status}`);
+                    return result;
+                } else if (youtubeResult.isAvailable) {
+                    addLog("YouTube check", true, `Video appears to be available (${youtubeResult.reason})`);
+                    // Video is available, continue with general connectivity tests to determine full accessibility
+                }
+            } catch (error) {
+                console.error('Error in priority YouTube check:', error);
+                addLog("YouTube check", false, `Error checking video: ${error.message}`);
+                // Continue with general checks if YouTube-specific check fails
+            }
         }
 
         // Method 1: Try favicon loading technique for basic connectivity
@@ -145,11 +222,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearTimeout(id);                    if (response) {
                         addLog("Full content test", true, "Page load completed successfully");
                         if (result.isHttpOnly) {
-                            result.status = "Fully Accessible (HTTP Warning)";
-                            result.message = "⚠️ Site accessible but uses insecure HTTP. Modern browsers may block or show warnings.";
+                            if (isYouTubeUrl(url)) {
+                                result.status = "Fully Accessible (Video Available, HTTP Warning)";
+                                result.message = "⚠️ YouTube video available but uses insecure HTTP. Modern browsers may show warnings.";
+                            } else {
+                                result.status = "Fully Accessible (HTTP Warning)";
+                                result.message = "⚠️ Site accessible but uses insecure HTTP. Modern browsers may show warnings.";
+                            }
                         } else {
-                            result.status = "Fully Accessible";
-                            result.message = "Site fully accessible from school network";
+                            if (isYouTubeUrl(url)) {
+                                result.status = "Fully Accessible (Video Available)";
+                                result.message = "Site and YouTube video are fully accessible from school network";
+                            } else {
+                                result.status = "Fully Accessible";
+                                result.message = "Site fully accessible from school network";
+                            }
                         }
                         result.http_status = "200 (inferred)";
                         result.method = "Full Load + Favicon";
@@ -300,12 +387,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let notReachableCount = 0;
         let errorCount = 0;
         let skippedCount = 0;
+        let videoRemovedCount = 0;
 
         results.forEach(r => {
-            if (r.status.includes("HTTP Warning")) {
+            if (r.status === "Video Removed") {
+                videoRemovedCount++;
+            } else if (r.status.includes("HTTP Warning")) {
                 httpWarningCount++;
                 reachableCount++; // HTTP warnings are still reachable
-            } else if (r.status === "Fully Accessible" || r.status === "Partially Accessible" || r.status === "Reachable" || r.status === "Likely Reachable" || r.status === "Possibly Reachable") {
+            } else if (r.status === "Fully Accessible" || r.status === "Partially Accessible" || r.status === "Reachable" || r.status === "Likely Reachable" || r.status === "Possibly Reachable" || r.status.includes("Video Available")) {
                 reachableCount++;
             } else if (r.status === "Not Reachable" || r.status === "Blocked") {
                 notReachableCount++;
@@ -323,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <li>Reachable URLs: <span class="text-green-700 font-semibold">${reachableCount}</span></li>
                 ${httpWarningCount > 0 ? `<li>URLs with HTTP Warnings: <span class="text-amber-700 font-semibold">${httpWarningCount}</span> ⚠️</li>` : ''}
                 <li>Not Reachable URLs: <span class="text-red-700 font-semibold">${notReachableCount}</span></li>
+                ${videoRemovedCount > 0 ? `<li>YouTube Videos Removed: <span class="text-purple-700 font-semibold">${videoRemovedCount}</span> 🎥</li>` : ''}
                 <li>URLs with Errors: <span class="text-orange-700 font-semibold">${errorCount}</span></li>
                 <li>Skipped (Empty) URLs: <span class="text-gray-500 font-semibold">${skippedCount}</span></li>
             </ul>
@@ -352,10 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <tr>
                                     <td class="px-6 py-4 text-sm font-medium text-gray-900 table-cell-url">
                                         <div class="group relative">
-                                            <span class="${needsTooltip ? 'url-truncated' : ''}" 
-                                                  ${needsTooltip ? `onmouseover="showTooltip(event, '${r.url.replace(/'/g, '\\\'')}')" onmouseout="hideTooltip()"` : ''}>
+                                            <a href="${r.url}" target="_blank" rel="noopener noreferrer" 
+                                               class="text-blue-600 hover:text-blue-800 underline ${needsTooltip ? 'url-truncated' : ''}" 
+                                               ${needsTooltip ? `onmouseover="showTooltip(event, '${r.url.replace(/'/g, '\\\'')}')" onmouseout="hideTooltip()"` : ''}>
                                                 ${truncated}
-                                            </span>
+                                            </a>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-sm ${getStatusClass(r.status)}">${r.status}</td>
@@ -895,7 +987,7 @@ function monitorIframeLoad(url) {
         if (iframeDoc && iframeDoc.readyState === 'complete') {
             // Check if the iframe has actual content
             const bodyContent = iframeDoc.body ? iframeDoc.body.innerHTML : '';
-            if (bodyContent.length > 100) { // Arbitrary threshold for "real" content
+            if (bodyContent.length > 100){ // Arbitrary threshold for "real" content
                 statusElement.textContent = 'Loaded Successfully!';
                 statusElement.className = 'text-sm font-semibold text-green-600';
                   // Auto-update the result in the table
@@ -1060,3 +1152,157 @@ window.handleIframeLoad = handleIframeLoad;
 window.handleIframeError = handleIframeError;
 window.reportManualResult = reportManualResult;
 window.updateTableResult = updateTableResult;
+
+/**
+ * Checks if a URL is a YouTube video URL
+ * @param {string} url - The URL to check
+ * @returns {boolean} True if it's a YouTube URL
+ */
+function isYouTubeUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+        return hostname === 'www.youtube.com' || 
+               hostname === 'youtube.com' || 
+               hostname === 'youtu.be' ||
+               hostname === 'm.youtube.com';
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Checks if a YouTube video is still available using multiple detection methods
+ * @param {string} url - The YouTube URL to check
+ * @param {number} timeout - Timeout for the request
+ * @returns {Promise<object>} Object with availability status
+ */
+async function checkYouTubeVideo(url, timeout = 15000) {
+    const result = {
+        isAvailable: false,
+        isRemoved: false,
+        reason: "unknown"
+    };
+
+    console.log('YouTube video availability check for:', url);
+
+    try {
+        // Extract video ID for additional checks
+        const videoId = extractYouTubeVideoId(url);
+        console.log('Extracted video ID:', videoId);
+
+        if (!videoId) {
+            result.reason = "could_not_extract_video_id";
+            return result;
+        }
+
+        // Method 1: Try to access YouTube's oEmbed API
+        // This is a public API that returns 404 for removed/private videos
+        try {
+            const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+            console.log('Trying oEmbed API:', oEmbedUrl);
+            
+            const oEmbedController = new AbortController();
+            const oEmbedTimeoutId = setTimeout(() => oEmbedController.abort(), 8000);
+            
+            const oEmbedResponse = await fetch(oEmbedUrl, {
+                signal: oEmbedController.signal
+            });
+            clearTimeout(oEmbedTimeoutId);
+            
+            console.log('oEmbed response status:', oEmbedResponse.status);
+            console.log('oEmbed response ok:', oEmbedResponse.ok);
+            
+            if (oEmbedResponse.ok && oEmbedResponse.status >= 200 && oEmbedResponse.status < 300) {
+                try {
+                    const oEmbedData = await oEmbedResponse.json();
+                    console.log('oEmbed data received:', oEmbedData.title);
+                    result.isAvailable = true;
+                    result.reason = "oembed_success";
+                    return result;
+                } catch (jsonError) {
+                    console.log('Failed to parse oEmbed JSON:', jsonError.message);
+                    // Treat JSON parse failure as problematic
+                    result.isRemoved = true;
+                    result.reason = "oembed_invalid_response";
+                    return result;
+                }
+            } else {
+                // Any non-200-class response indicates a problem
+                console.log(`oEmbed returned non-success status: ${oEmbedResponse.status} - video likely problematic`);
+                result.isRemoved = true;
+                result.reason = `oembed_error_${oEmbedResponse.status}`;
+                return result;
+            }
+        } catch (oEmbedError) {
+            console.log('oEmbed request failed:', oEmbedError.name, oEmbedError.message);
+            
+            // AGGRESSIVE: Any oEmbed error is treated as a video problem
+            if (oEmbedError.name === 'AbortError') {
+                console.log('oEmbed request timed out - treating as video problem');
+                result.isRemoved = true;
+                result.reason = "oembed_timeout_video_problem";
+                return result;
+            } else {
+                console.log('oEmbed failed - treating as video problem');
+                result.isRemoved = true;
+                result.reason = "oembed_network_error_video_problem";
+                return result;
+            }
+        }
+
+        // If we reach here, oEmbed failed but no specific error was caught
+        // This shouldn't happen, but treat as video problem to be safe
+        console.log('Reached end of oEmbed logic without clear result - treating as video problem');
+        result.isRemoved = true;
+        result.reason = "oembed_unclear_failure_video_problem";
+        return result;
+        
+    } catch (error) {
+        console.log('Unexpected error in YouTube check:', error.name, error.message);
+        // AGGRESSIVE: Any unexpected error is treated as video problem
+        result.isRemoved = true;
+        if (error.name === 'AbortError') {
+            result.reason = "unexpected_timeout_video_problem";
+        } else {
+            result.reason = "unexpected_error_video_problem";
+        }
+        return result;
+    }
+}
+
+/**
+ * Extracts YouTube video ID from various YouTube URL formats
+ * @param {string} url - The YouTube URL
+ * @returns {string|null} The video ID or null if not found
+ */
+function extractYouTubeVideoId(url) {
+    try {
+        const urlObj = new URL(url);
+        
+        // Standard youtube.com/watch?v= format
+        if (urlObj.pathname === '/watch') {
+            return urlObj.searchParams.get('v');
+        }
+        
+        // youtu.be/VIDEO_ID format
+        if (urlObj.hostname === 'youtu.be') {
+            return urlObj.pathname.substring(1);
+        }
+        
+        // youtube.com/embed/VIDEO_ID format
+        if (urlObj.pathname.startsWith('/embed/')) {
+            return urlObj.pathname.substring(7);
+        }
+        
+        // youtube.com/v/VIDEO_ID format
+        if (urlObj.pathname.startsWith('/v/')) {
+            return urlObj.pathname.substring(3);
+        }
+        
+    } catch (e) {
+        return null;
+    }
+    
+    return null;
+}
