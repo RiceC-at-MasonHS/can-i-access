@@ -1,3 +1,26 @@
+/**
+ * Gets the appropriate CSS class for a status value.
+ * @param {string} status - The status string.
+ * @returns {string} The CSS class name.
+ */
+function getStatusClass(status) {
+    if (status.includes('HTTP Warning')) {
+        return 'status-http-warning';
+    } else if (status === 'Video Removed') {
+        return 'status-video-removed';
+    } else if (status === 'Fully Accessible' || status === 'Partially Accessible' || 
+               status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable' ||
+               status.includes('Video Available')) {
+        return 'status-reachable';
+    } else if (status === 'Not Reachable') {
+        return 'status-not-reachable';
+    } else if (status === 'Error') {
+        return 'status-error';
+    } else {
+        return 'status-skipped';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const csvFile = document.getElementById('csvFile');
     const urlInput = document.getElementById('urlInput');
@@ -94,29 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
      */    function parseTextArea(text) {
         return text.split(/\r?\n/).map(url => url.trim()).filter(url => url !== '');
     }
-
     /**
-     * Gets the appropriate CSS class for a status value.
-     * @param {string} status - The status string.
-     * @returns {string} The CSS class name.
-     */
-    function getStatusClass(status) {
-        if (status.includes('HTTP Warning')) {
-            return 'status-http-warning';
-        } else if (status === 'Video Removed') {
-            return 'status-video-removed';
-        } else if (status === 'Fully Accessible' || status === 'Partially Accessible' || 
-                   status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable' ||
-                   status.includes('Video Available')) {
-            return 'status-reachable';
-        } else if (status === 'Not Reachable') {
-            return 'status-not-reachable';
-        } else if (status === 'Error') {
-            return 'status-error';
-        } else {
-            return 'status-skipped';
-        }
-    }/**
      * Checks the reachability of a given URL using progressive testing methods from within the school network.
      * @param {string} url - The URL to check.
      * @param {number} timeout - The maximum number of milliseconds to wait for a response.
@@ -1152,6 +1153,7 @@ window.handleIframeLoad = handleIframeLoad;
 window.handleIframeError = handleIframeError;
 window.reportManualResult = reportManualResult;
 window.updateTableResult = updateTableResult;
+window.getStatusClass = getStatusClass;
 
 /**
  * Checks if a URL is a YouTube video URL
