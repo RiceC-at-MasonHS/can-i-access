@@ -75,6 +75,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 filterResults('errors');
                 e.preventDefault();
                 break;
+            case 'p':
+            case 'P':
+                if (e.ctrlKey) {
+                    printReport();
+                    e.preventDefault();
+                }
+                break;
+            case 'e':
+            case 'E':
+                if (e.ctrlKey) {
+                    exportReportAsCSV();
+                    e.preventDefault();
+                }
+                break;
             case 'Escape':
                 filterResults('all');
                 e.preventDefault();
@@ -556,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Detailed Results</h2>
             
             <!-- Filter Buttons -->
-            <div class="mb-6 bg-gray-50 p-4 rounded-lg">
+            <div class="mb-6 bg-gray-50 p-4 rounded-lg no-print filter-container">
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <span class="text-sm font-medium text-gray-700 mr-2">Filter Results:</span>
                     <button onclick="filterResults('all')" class="filter-btn filter-btn-active" data-filter="all">
@@ -596,9 +610,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         🔄 Clear Filters
                     </button>
                 </div>
+                <div class="flex flex-wrap items-center gap-2 mt-3">
+                    <span class="text-sm font-medium text-gray-700 mr-2">Actions:</span>
+                    <button onclick="printReport()" class="filter-btn filter-btn-print">
+                        🖨️ Print Report
+                    </button>
+                    <button onclick="exportReportAsCSV()" class="filter-btn filter-btn-export">
+                        📋 Export CSV
+                    </button>
+                </div>
                 <div class="mt-3 text-xs text-gray-600">
                     <span id="filterStatus">Showing all ${totalUrls} results</span>
-                    <span class="ml-4">💡 Keyboard shortcuts: 1-6 for quick filters, Esc for all</span>
+                    <span class="ml-4">💡 Shortcuts: 1-6 filters, Esc=all, Ctrl+P=print, Ctrl+E=export</span>
                 </div>
             </div>
         `;
@@ -1459,6 +1482,177 @@ function getFilterDisplayName(filterType) {
     return names[filterType] || filterType;
 }
 
+/**
+ * Prints a formatted report of the current results
+ */
+function printReport() {
+    const originalContent = document.body.innerHTML;
+    const currentDate = new Date().toLocaleDateString();
+    const currentTime = new Date().toLocaleTimeString();
+    
+    // Get visible rows (respecting current filter)
+    const visibleRows = Array.from(document.querySelectorAll('tbody tr')).filter(row => 
+        !row.classList.contains('table-row-hidden')
+    );
+    
+    if (visibleRows.length === 0) {
+        alert('No results to print. Please run a URL check first.');
+        return;
+    }
+    
+    // Get current filter info
+    const activeFilter = document.querySelector('.filter-btn-active');
+    const filterName = activeFilter ? activeFilter.textContent.trim() : 'All Results';
+    
+    // Generate summary from visible rows
+    let reachableCount = 0, notReachableCount = 0, manualCheckCount = 0, 
+        videoRemovedCount = 0, httpsUpgradeCount = 0;
+    
+    visibleRows.forEach(row => {
+        const statusCell = row.querySelector('td:nth-child(2)');
+        if (statusCell) {
+            const status = statusCell.textContent.trim();
+            if (status.includes('Fully Accessible') || status.includes('Partially Accessible') || status.includes('Possibly Reachable')) {
+                reachableCount++;
+            } else if (status === 'Not Reachable') {
+                notReachableCount++;
+            } else if (status.includes('Manual Check Required')) {
+                manualCheckCount++;
+            } else if (status === 'Video Removed') {
+                videoRemovedCount++;
+            }
+            if (status.includes('HTTPS Upgraded')) {
+                httpsUpgradeCount++;
+            }
+        }
+    });
+    
+    // Create print content
+    const printContent = `
+        <div class="print-header">
+            <h1>School Network URL Accessibility Report</h1>
+            <p>Generated on ${currentDate} at ${currentTime}</p>
+            <p>Filter Applied: ${filterName}</p>
+        </div>
+        
+        <div class="print-summary">
+            <h2>Summary</h2>
+            <ul>
+                <li>Total URLs in Report: ${visibleRows.length}</li>
+                <li>Reachable URLs: ${reachableCount}</li>
+                ${notReachableCount > 0 ? `<li>Not Reachable URLs: ${notReachableCount}</li>` : ''}
+                ${manualCheckCount > 0 ? `<li>Manual Check Required: ${manualCheckCount}</li>` : ''}
+                ${videoRemovedCount > 0 ? `<li>Videos Removed: ${videoRemovedCount}</li>` : ''}
+                ${httpsUpgradeCount > 0 ? `<li>HTTPS Upgraded: ${httpsUpgradeCount}</li>` : ''}
+            </ul>
+            
+            <h3>Recommended Actions for IT Department:</h3>
+            <ul>
+                ${notReachableCount > 0 ? '<li>Review "Not Reachable" URLs for potential whitelisting</li>' : ''}
+                ${manualCheckCount > 0 ? '<li>Manually verify "Manual Check Required" URLs</li>' : ''}
+                <li>Consider implementing HTTPS-only policies for improved security</li>
+                <li>Review educational content accessibility for curriculum needs</li>
+            </ul>
+        </div>
+        
+        <h2>Detailed Results</h2>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>Method</th>
+                    <th>HTTP Status</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${visibleRows.map(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 5) {
+                        // Get just the URL text without the link
+                        const urlText = cells[0].querySelector('a') ? cells[0].querySelector('a').textContent : cells[0].textContent;
+                        return `
+                            <tr>
+                                <td>${urlText}</td>
+                                <td class="${cells[1].className}">${cells[1].textContent}</td>
+                                <td>${cells[2].textContent}</td>
+                                <td>${cells[3].textContent}</td>
+                                <td>${cells[4].textContent}</td>
+                            </tr>
+                        `;
+                    }
+                    return '';
+                }).join('')}
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 20pt; font-size: 10pt; color: #666;">
+            <p>Report generated by Can I Access - School Network URL Checker</p>
+            <p>For technical support or questions about blocked URLs, contact your school's IT department.</p>
+        </div>
+    `;
+    
+    // Replace page content temporarily
+    document.body.innerHTML = printContent;
+    
+    // Print
+    window.print();
+    
+    // Restore original content
+    document.body.innerHTML = originalContent;
+}
+
+/**
+ * Exports the current results as a CSV file
+ */
+function exportReportAsCSV() {
+    // Get visible rows (respecting current filter)
+    const visibleRows = Array.from(document.querySelectorAll('tbody tr')).filter(row => 
+        !row.classList.contains('table-row-hidden')
+    );
+    
+    if (visibleRows.length === 0) {
+        alert('No results to export. Please run a URL check first.');
+        return;
+    }
+    
+    // Create CSV header
+    let csvContent = 'URL,Status,Method,HTTP Status,Message\n';
+    
+    // Add data rows
+    visibleRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 5) {
+            // Get just the URL text
+            const urlText = cells[0].querySelector('a') ? cells[0].querySelector('a').href : cells[0].textContent.trim();
+            const status = cells[1].textContent.trim().replace(/"/g, '""'); // Escape quotes
+            const method = cells[2].textContent.trim().replace(/"/g, '""');
+            const httpStatus = cells[3].textContent.trim().replace(/"/g, '""');
+            const message = cells[4].textContent.trim().replace(/"/g, '""');
+            
+            csvContent += `"${urlText}","${status}","${method}","${httpStatus}","${message}"\n`;
+        }
+    });
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `url-accessibility-report-${currentDate}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else {
+        alert('CSV export is not supported in this browser. Please try using a modern browser like Chrome, Firefox, or Edge.');
+    }
+}
+
 // Make functions global so they can be called from HTML
 window.showTooltip = showTooltip;
 window.hideTooltip = hideTooltip;
@@ -1470,6 +1664,8 @@ window.reportManualResult = reportManualResult;
 window.updateTableResult = updateTableResult;
 window.getStatusClass = getStatusClass;
 window.filterResults = filterResults;
+window.printReport = printReport;
+window.exportReportAsCSV = exportReportAsCSV;
 
 /**
  * Checks if a URL is a YouTube video URL

@@ -390,6 +390,28 @@ table td.whitespace-normal {
     border-color: #d97706;
 }
 
+.filter-btn-print {
+    background-color: #16a34a; /* bg-green-600 */
+    color: white;
+    border-color: #16a34a;
+}
+
+.filter-btn-print:hover {
+    background-color: #15803d; /* bg-green-700 */
+    border-color: #15803d;
+}
+
+.filter-btn-export {
+    background-color: #0891b2; /* bg-cyan-600 */
+    color: white;
+    border-color: #0891b2;
+}
+
+.filter-btn-export:hover {
+    background-color: #0e7490; /* bg-cyan-700 */
+    border-color: #0e7490;
+}
+
 /* Table row filtering */
 .table-row-hidden {
     display: none !important;
@@ -397,4 +419,125 @@ table td.whitespace-normal {
 
 .table-row-visible {
     display: table-row !important;
+}
+
+/* Print Styles */
+@media print {
+    /* Hide non-essential elements when printing */
+    .filter-btn, .manual-test-btn, 
+    .no-print, input, textarea, button:not(.print-show),
+    .bg-gray-50, .filter-container {
+        display: none !important;
+    }
+    
+    /* Show only print-friendly elements */
+    .print-only {
+        display: block !important;
+    }
+    
+    /* Adjust page layout for printing */
+    body {
+        background-color: white !important;
+        color: black !important;
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    .container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0.5in !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+    
+    /* Table print optimization */
+    .table-container {
+        overflow: visible !important;
+    }
+    
+    .results-table {
+        min-width: 100% !important;
+        table-layout: auto !important;
+        font-size: 10pt;
+        border-collapse: collapse !important;
+    }
+    
+    .results-table th,
+    .results-table td {
+        padding: 4pt 6pt !important;
+        border: 1px solid #000 !important;
+        word-wrap: break-word !important;
+        page-break-inside: avoid;
+    }
+    
+    .results-table th {
+        background-color: #f0f0f0 !important;
+        font-weight: bold !important;
+        text-transform: uppercase;
+        font-size: 9pt;
+    }
+    
+    /* Adjust column widths for print */
+    .results-table th:nth-child(1), .results-table td:nth-child(1) { width: 35%; } /* URL */
+    .results-table th:nth-child(2), .results-table td:nth-child(2) { width: 20%; } /* Status */
+    .results-table th:nth-child(3), .results-table td:nth-child(3) { width: 15%; } /* Method */
+    .results-table th:nth-child(4), .results-table td:nth-child(4) { width: 15%; } /* HTTP Status */
+    .results-table th:nth-child(5), .results-table td:nth-child(5) { width: 15%; } /* Message */
+    .results-table th:nth-child(6), .results-table td:nth-child(6) { display: none; } /* Hide Details column */
+    
+    /* Status colors for print (high contrast) */
+    .status-reachable { color: #000 !important; background-color: #e6ffe6 !important; }
+    .status-not-reachable { color: #000 !important; background-color: #ffe6e6 !important; }
+    .status-error { color: #000 !important; background-color: #fff2e6 !important; }
+    .status-http-warning { color: #000 !important; background-color: #fffbe6 !important; }
+    .status-video-removed { color: #000 !important; background-color: #f3e6ff !important; }
+    .status-manual-check { color: #000 !important; background-color: #ffe6e6 !important; }
+    
+    /* Remove status styling borders and padding for print */
+    .status-http-warning, .status-video-removed, .status-manual-check {
+        padding: 2pt !important;
+        border: none !important;
+        border-radius: 0 !important;
+    }
+    
+    /* Page break handling */
+    .results-table thead {
+        display: table-header-group;
+    }
+    
+    .results-table tbody tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+    
+    /* Print header styling */
+    .print-header {
+        text-align: center;
+        margin-bottom: 20pt;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10pt;
+    }
+    
+    .print-summary {
+        margin-bottom: 15pt;
+        font-size: 11pt;
+    }
+    
+    .print-summary ul {
+        columns: 2;
+        column-gap: 20pt;
+    }
+    
+    /* Ensure links are readable in print */
+    a {
+        color: #000 !important;
+        text-decoration: none !important;
+        word-break: break-all;
+    }
+    
+    /* Hide filter status and other UI elements */
+    #filterStatus, .filter-container {
+        display: none !important;
+    }
 }
