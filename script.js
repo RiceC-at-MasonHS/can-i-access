@@ -482,8 +482,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const feedbackDiv = document.createElement('div');
             feedbackDiv.className = 'bg-gray-50 border-l-4 border-blue-400 p-3 mb-2 text-sm';
             
-            const statusColor = result.status === 'Fully Accessible' || result.status === 'Partially Accessible' ? 'text-green-700' : 
-                               result.status === 'Possibly Reachable' ? 'text-yellow-700' : 
+            const statusColor = result.status.includes('Fully Accessible') || result.status.includes('Partially Accessible') ? 'text-green-700' : 
+                               result.status.includes('Possibly Reachable') ? 'text-yellow-700' : 
                                result.status.includes('Manual Check Required') ? 'text-red-600' :
                                result.status.includes('HTTPS Upgraded') ? 'text-green-600' : 'text-red-700';
             
