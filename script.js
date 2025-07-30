@@ -4,13 +4,15 @@
  * @returns {string} The CSS class name.
  */
 function getStatusClass(status) {
-    if (status.includes('HTTP Warning')) {
+    if (status.includes('Manual Check Required')) {
+        return 'status-manual-check';
+    } else if (status.includes('HTTP Warning')) {
         return 'status-http-warning';
     } else if (status === 'Video Removed') {
         return 'status-video-removed';
     } else if (status === 'Fully Accessible' || status === 'Partially Accessible' || 
                status === 'Reachable' || status === 'Likely Reachable' || status === 'Possibly Reachable' ||
-               status.includes('Video Available')) {
+               status.includes('Video Available') || status.includes('HTTPS Upgraded')) {
         return 'status-reachable';
     } else if (status === 'Not Reachable') {
         return 'status-not-reachable';
@@ -38,6 +40,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. Copy the generated URL. It will look something like:
     //    https://docs.google.com/spreadsheets/d/e/2PACX-1vR-random-string-here/pub?output=csv
     const DEFAULT_GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9Oz-V5oBf5R0CTfGJl0BTnHf54zn0YEHKd6VvNYNWajK__z09mlyHmvH_6yjx4gpo319Ld4JgYxjY/pub?gid=0&single=true&output=csv';
+
+    // Add keyboard shortcuts for filters
+    document.addEventListener('keydown', (e) => {
+        // Only activate when not typing in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        // Check if results table exists
+        const hasResults = document.querySelector('tbody tr');
+        if (!hasResults) return;
+        
+        switch (e.key) {
+            case '1':
+                filterResults('all');
+                e.preventDefault();
+                break;
+            case '2':
+                filterResults('reachable');
+                e.preventDefault();
+                break;
+            case '3':
+                filterResults('not-reachable');
+                e.preventDefault();
+                break;
+            case '4':
+                filterResults('manual-check');
+                e.preventDefault();
+                break;
+            case '5':
+                filterResults('youtube');
+                e.preventDefault();
+                break;
+            case '6':
+                filterResults('errors');
+                e.preventDefault();
+                break;
+            case 'Escape':
+                filterResults('all');
+                e.preventDefault();
+                break;
+        }
+    });
 
     /**
      * Parses CSV content and extracts URLs from the 'URL' column.
@@ -123,18 +166,22 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {number} timeout - The maximum number of milliseconds to wait for a response.
      * @returns {Promise<object>} A promise that resolves to an object containing URL check results.
      */    async function checkUrl(url, timeout = 10000) {
+        const originalUrl = url;
+        let httpsUpgradeAttempted = false;
+        let httpsUpgradeSuccessful = false;
+        
         const result = {
-            url: url,
+            url: originalUrl, // Always keep the original URL for display
             status: "Error",
             http_status: "N/A",
             message: "An unexpected error occurred.",
             method: "Unknown",
             details: [],
-            isHttpOnly: false
+            isHttpOnly: false,
+            httpsUpgradeAttempted: false,
+            httpsUpgradeSuccessful: false,
+            finalUrl: url
         };
-
-        // Check if URL uses HTTP (insecure)
-        result.isHttpOnly = url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://');
 
         // Add detailed logging function
         const addLog = (step, success, details) => {
@@ -143,9 +190,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addLog("Starting connectivity test", true, "Testing from school network");
 
-        // Check for HTTP-only URLs early
-        if (result.isHttpOnly) {
+        // HTTP to HTTPS upgrade logic
+        if (url.toLowerCase().startsWith('http://') && !url.toLowerCase().startsWith('https://')) {
+            const httpsUrl = url.replace(/^http:\/\//i, 'https://');
+            httpsUpgradeAttempted = true;
+            result.httpsUpgradeAttempted = true;
+            
+            addLog("HTTPS upgrade", true, `Attempting to upgrade HTTP to HTTPS: ${httpsUrl}`);
+            
+            try {
+                // Test HTTPS version with a quick favicon check
+                const httpsTest = await new Promise((resolve) => {
+                    const img = new Image();
+                    const timeout_id = setTimeout(() => {
+                        img.onload = img.onerror = null;
+                        resolve({ success: false, reason: "timeout" });
+                    }, Math.min(timeout, 5000)); // Shorter timeout for HTTPS test
+
+                    img.onload = () => {
+                        clearTimeout(timeout_id);
+                        resolve({ success: true, reason: "loaded" });
+                    };
+                    
+                    img.onerror = () => {
+                        clearTimeout(timeout_id);
+                        resolve({ success: true, reason: "error_but_reachable" }); // Site reachable even if favicon fails
+                    };
+
+                    try {
+                        const urlObj = new URL(httpsUrl);
+                        img.src = `${urlObj.protocol}//${urlObj.host}/favicon.ico?_=${Date.now()}`;
+                    } catch (e) {
+                        resolve({ success: false, reason: "invalid_url" });
+                    }
+                });
+
+                if (httpsTest.success) {
+                    addLog("HTTPS upgrade", true, `✓ HTTPS upgrade successful - using ${httpsUrl}`);
+                    url = httpsUrl; // Use the HTTPS version for all subsequent tests
+                    result.finalUrl = httpsUrl;
+                    httpsUpgradeSuccessful = true;
+                    result.httpsUpgradeSuccessful = true;
+                } else {
+                    addLog("HTTPS upgrade", false, `HTTPS upgrade failed (${httpsTest.reason}) - falling back to HTTP`);
+                    addLog("Security warning", false, "⚠️ URL remains HTTP - manual verification required");
+                    result.isHttpOnly = true;
+                }
+            } catch (error) {
+                addLog("HTTPS upgrade", false, `HTTPS upgrade failed (${error.message}) - falling back to HTTP`);
+                addLog("Security warning", false, "⚠️ URL remains HTTP - manual verification required");
+                result.isHttpOnly = true;
+            }
+        } else if (url.toLowerCase().startsWith('http://')) {
+            // Already checked and is HTTP (shouldn't happen with above logic, but safety check)
+            result.isHttpOnly = true;
             addLog("Security check", false, "⚠️ HTTP-only URL detected - browsers may block or show warnings");
+        } else {
+            // HTTPS URL or non-HTTP protocol
+            result.isHttpOnly = false;
         }
 
         // PRIORITY CHECK: YouTube-specific video availability check
@@ -224,19 +326,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         addLog("Full content test", true, "Page load completed successfully");
                         if (result.isHttpOnly) {
                             if (isYouTubeUrl(url)) {
-                                result.status = "Fully Accessible (Video Available, HTTP Warning)";
-                                result.message = "⚠️ YouTube video available but uses insecure HTTP. Modern browsers may show warnings.";
+                                result.status = "Manual Check Required (Video Available, HTTP Warning)";
+                                result.message = "⚠️ YouTube video available but HTTPS upgrade failed. Manual verification required due to HTTP-only access.";
                             } else {
-                                result.status = "Fully Accessible (HTTP Warning)";
-                                result.message = "⚠️ Site accessible but uses insecure HTTP. Modern browsers may show warnings.";
+                                result.status = "Manual Check Required (HTTP Warning)";
+                                result.message = "⚠️ Site accessible but HTTPS upgrade failed. Manual verification required due to HTTP-only access.";
                             }
                         } else {
                             if (isYouTubeUrl(url)) {
-                                result.status = "Fully Accessible (Video Available)";
-                                result.message = "Site and YouTube video are fully accessible from school network";
+                                if (result.httpsUpgradeSuccessful) {
+                                    result.status = "Fully Accessible (Video Available, HTTPS Upgraded)";
+                                    result.message = "✓ YouTube video fully accessible. Successfully upgraded from HTTP to HTTPS.";
+                                } else {
+                                    result.status = "Fully Accessible (Video Available)";
+                                    result.message = "Site and YouTube video are fully accessible from school network";
+                                }
                             } else {
-                                result.status = "Fully Accessible";
-                                result.message = "Site fully accessible from school network";
+                                if (result.httpsUpgradeSuccessful) {
+                                    result.status = "Fully Accessible (HTTPS Upgraded)";
+                                    result.message = "✓ Site fully accessible. Successfully upgraded from HTTP to HTTPS.";
+                                } else {
+                                    result.status = "Fully Accessible";
+                                    result.message = "Site fully accessible from school network";
+                                }
                             }
                         }
                         result.http_status = "200 (inferred)";
@@ -247,11 +359,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     addLog("Full content test", false, `Failed: ${fetchError.message}`);
                 }                // Fallback: Favicon worked but full load didn't
                 if (result.isHttpOnly) {
-                    result.status = "Partially Accessible (HTTP Warning)";
-                    result.message = "⚠️ Domain reachable but uses insecure HTTP. Full content may be restricted and browsers may show warnings.";
+                    result.status = "Manual Check Required (HTTP Warning)";
+                    result.message = "⚠️ Domain reachable but HTTPS upgrade failed. Manual verification required due to HTTP-only access.";
                 } else {
-                    result.status = "Partially Accessible";
-                    result.message = "Domain reachable but full content may be restricted";
+                    if (result.httpsUpgradeSuccessful) {
+                        result.status = "Partially Accessible (HTTPS Upgraded)";
+                        result.message = "✓ Domain reachable with HTTPS upgrade. Full content may be restricted.";
+                    } else {
+                        result.status = "Partially Accessible";
+                        result.message = "Domain reachable but full content may be restricted";
+                    }
                 }
                 result.http_status = "Favicon OK";
                 result.method = "Favicon Only";
@@ -277,11 +394,16 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(id);            if (response) {
                 addLog("Direct fetch test", true, "Request completed");
                 if (result.isHttpOnly) {
-                    result.status = "Possibly Reachable (HTTP Warning)";
-                    result.message = "⚠️ Request completed but uses insecure HTTP. Modern browsers may block or show warnings.";
+                    result.status = "Manual Check Required (HTTP Warning)";
+                    result.message = "⚠️ Request completed but HTTPS upgrade failed. Manual verification required due to HTTP-only access.";
                 } else {
-                    result.status = "Possibly Reachable";
-                    result.message = "Request completed from school network (limited info due to CORS)";
+                    if (result.httpsUpgradeSuccessful) {
+                        result.status = "Possibly Reachable (HTTPS Upgraded)";
+                        result.message = "✓ Request completed with HTTPS upgrade (limited info due to CORS)";
+                    } else {
+                        result.status = "Possibly Reachable";
+                        result.message = "Request completed from school network (limited info due to CORS)";
+                    }
                 }
                 result.http_status = "No-CORS Response";
                 result.method = "No-CORS Fetch";
@@ -361,7 +483,9 @@ document.addEventListener('DOMContentLoaded', () => {
             feedbackDiv.className = 'bg-gray-50 border-l-4 border-blue-400 p-3 mb-2 text-sm';
             
             const statusColor = result.status === 'Fully Accessible' || result.status === 'Partially Accessible' ? 'text-green-700' : 
-                               result.status === 'Possibly Reachable' ? 'text-yellow-700' : 'text-red-700';
+                               result.status === 'Possibly Reachable' ? 'text-yellow-700' : 
+                               result.status.includes('Manual Check Required') ? 'text-red-600' :
+                               result.status.includes('HTTPS Upgraded') ? 'text-green-600' : 'text-red-700';
             
             const truncatedUrl = truncateUrl(url, 60);
             feedbackDiv.innerHTML = `
@@ -385,14 +509,18 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingIndicator.classList.add('hidden'); // Hide loading indicator        // Generate summary
         let reachableCount = 0;
         let httpWarningCount = 0;
+        let manualCheckCount = 0;
         let notReachableCount = 0;
         let errorCount = 0;
         let skippedCount = 0;
         let videoRemovedCount = 0;
+        let httpsUpgradeCount = 0;
 
         results.forEach(r => {
             if (r.status === "Video Removed") {
                 videoRemovedCount++;
+            } else if (r.status.includes("Manual Check Required")) {
+                manualCheckCount++;
             } else if (r.status.includes("HTTP Warning")) {
                 httpWarningCount++;
                 reachableCount++; // HTTP warnings are still reachable
@@ -405,6 +533,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (r.status === "Skipped") {
                 skippedCount++;
             }
+            
+            // Count HTTPS upgrades
+            if (r.httpsUpgradeSuccessful) {
+                httpsUpgradeCount++;
+            }
         });        const totalUrls = results.length; // Use results.length to account for skipped
 
         let summaryHtml = `
@@ -412,6 +545,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <ul class="list-disc list-inside text-gray-700 mb-6">
                 <li>Total URLs processed: ${totalUrls}</li>
                 <li>Reachable URLs: <span class="text-green-700 font-semibold">${reachableCount}</span></li>
+                ${httpsUpgradeCount > 0 ? `<li>URLs Successfully Upgraded to HTTPS: <span class="text-green-600 font-semibold">${httpsUpgradeCount}</span> 🔒</li>` : ''}
+                ${manualCheckCount > 0 ? `<li>URLs Requiring Manual Check: <span class="text-red-600 font-semibold">${manualCheckCount}</span> ⚠️</li>` : ''}
                 ${httpWarningCount > 0 ? `<li>URLs with HTTP Warnings: <span class="text-amber-700 font-semibold">${httpWarningCount}</span> ⚠️</li>` : ''}
                 <li>Not Reachable URLs: <span class="text-red-700 font-semibold">${notReachableCount}</span></li>
                 ${videoRemovedCount > 0 ? `<li>YouTube Videos Removed: <span class="text-purple-700 font-semibold">${videoRemovedCount}</span> 🎥</li>` : ''}
@@ -419,6 +554,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 <li>Skipped (Empty) URLs: <span class="text-gray-500 font-semibold">${skippedCount}</span></li>
             </ul>
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Detailed Results</h2>
+            
+            <!-- Filter Buttons -->
+            <div class="mb-6 bg-gray-50 p-4 rounded-lg">
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <span class="text-sm font-medium text-gray-700 mr-2">Filter Results:</span>
+                    <button onclick="filterResults('all')" class="filter-btn filter-btn-active" data-filter="all">
+                        All (${totalUrls})
+                    </button>
+                    <button onclick="filterResults('reachable')" class="filter-btn" data-filter="reachable">
+                        ✓ Reachable (${reachableCount})
+                    </button>
+                    ${manualCheckCount > 0 ? `<button onclick="filterResults('manual-check')" class="filter-btn" data-filter="manual-check">
+                        ⚠️ Manual Check (${manualCheckCount})
+                    </button>` : ''}
+                    <button onclick="filterResults('not-reachable')" class="filter-btn" data-filter="not-reachable">
+                        ✗ Not Reachable (${notReachableCount})
+                    </button>
+                    ${videoRemovedCount > 0 ? `<button onclick="filterResults('video-removed')" class="filter-btn" data-filter="video-removed">
+                        🎥 Videos Removed (${videoRemovedCount})
+                    </button>` : ''}
+                    ${httpsUpgradeCount > 0 ? `<button onclick="filterResults('https-upgraded')" class="filter-btn" data-filter="https-upgraded">
+                        🔒 HTTPS Upgraded (${httpsUpgradeCount})
+                    </button>` : ''}
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm font-medium text-gray-700 mr-2">Special Filters:</span>
+                    <button onclick="filterResults('youtube')" class="filter-btn" data-filter="youtube">
+                        📺 YouTube URLs
+                    </button>
+                    <button onclick="filterResults('http-only')" class="filter-btn" data-filter="http-only">
+                        🔓 HTTP URLs
+                    </button>
+                    <button onclick="filterResults('errors')" class="filter-btn" data-filter="errors">
+                        ⚠️ Errors/Issues
+                    </button>
+                    <button onclick="filterResults('manual-test-available')" class="filter-btn" data-filter="manual-test-available">
+                        🧪 Manual Test Available
+                    </button>
+                    <button onclick="filterResults('all')" class="filter-btn filter-btn-clear" data-filter="clear">
+                        🔄 Clear Filters
+                    </button>
+                </div>
+                <div class="mt-3 text-xs text-gray-600">
+                    <span id="filterStatus">Showing all ${totalUrls} results</span>
+                    <span class="ml-4">💡 Keyboard shortcuts: 1-6 for quick filters, Esc for all</span>
+                </div>
+            </div>
         `;
         // Set innerHTML for summary, then append table
         reportContainer.innerHTML = summaryHtml;        // Generate detailed table
@@ -462,9 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                              </button>` : 
                                             '<span class="text-gray-400 text-xs block mb-1">No logs</span>'
                                         }${!r.status.includes('Fully Accessible') && r.status !== 'Skipped' ? 
-                                            `<button onclick="testManualAccess('${r.url.replace(/'/g, '\\\'')}')" 
+                                            `<button onclick="testManualAccess('${(r.finalUrl || r.url).replace(/'/g, '\\\'')}')" 
                                              class="manual-test-btn hover:bg-yellow-600 text-white text-xs px-2 py-1 rounded block">
-                                                ${r.status.includes('Partially Accessible') ? 'Test Full Access' : 
+                                                ${r.status.includes('Manual Check Required') ? 'Manual Check' :
+                                                  r.status.includes('Partially Accessible') ? 'Test Full Access' : 
                                                   r.status.includes('Possibly Reachable') ? 'Verify Access' : 
                                                   r.status === 'Not Reachable' ? 'Retry Test' : 'Manual Check'}
                                              </button>` : ''
@@ -1142,6 +1325,138 @@ function updateTableResult(url, newStatus, newMethod, newHttpStatus, newMessage)
             }
         }
     });
+    
+    // Refresh current filter to maintain filtering state
+    const activeFilter = document.querySelector('.filter-btn-active');
+    if (activeFilter && activeFilter.dataset.filter !== 'all') {
+        filterResults(activeFilter.dataset.filter);
+    }
+}
+
+/**
+ * Filters the results table based on the selected filter type
+ * @param {string} filterType - The type of filter to apply
+ */
+function filterResults(filterType) {
+    const tableRows = document.querySelectorAll('tbody tr');
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const filterStatus = document.getElementById('filterStatus');
+    
+    let visibleCount = 0;
+    let totalCount = tableRows.length;
+    
+    // Update button states
+    filterButtons.forEach(btn => {
+        btn.classList.remove('filter-btn-active');
+        if (btn.dataset.filter === filterType) {
+            btn.classList.add('filter-btn-active');
+        }
+    });
+    
+    // Apply filters
+    tableRows.forEach(row => {
+        const statusCell = row.querySelector('td:nth-child(2)');
+        const urlCell = row.querySelector('td:first-child a');
+        const detailsCell = row.querySelector('td:last-child');
+        
+        if (!statusCell || !urlCell) return;
+        
+        const status = statusCell.textContent.trim();
+        const url = urlCell.href || urlCell.textContent;
+        const hasManualTestButton = detailsCell && detailsCell.querySelector('.manual-test-btn');
+        
+        let shouldShow = false;
+        
+        switch (filterType) {
+            case 'all':
+                shouldShow = true;
+                break;
+                
+            case 'reachable':
+                shouldShow = status.includes('Fully Accessible') || 
+                           status.includes('Partially Accessible') || 
+                           status.includes('Possibly Reachable') ||
+                           status.includes('Video Available');
+                break;
+                
+            case 'manual-check':
+                shouldShow = status.includes('Manual Check Required');
+                break;
+                
+            case 'not-reachable':
+                shouldShow = status === 'Not Reachable' || status === 'Blocked';
+                break;
+                
+            case 'video-removed':
+                shouldShow = status === 'Video Removed';
+                break;
+                
+            case 'https-upgraded':
+                shouldShow = status.includes('HTTPS Upgraded');
+                break;
+                
+            case 'youtube':
+                shouldShow = isYouTubeUrl(url);
+                break;
+                
+            case 'http-only':
+                shouldShow = url.toLowerCase().startsWith('http://');
+                break;
+                
+            case 'errors':
+                shouldShow = status.includes('Error') || 
+                           status.includes('Warning') || 
+                           status.includes('Manual Check Required') ||
+                           status === 'Video Removed' ||
+                           status === 'Not Reachable';
+                break;
+                
+            case 'manual-test-available':
+                shouldShow = hasManualTestButton !== null;
+                break;
+                
+            default:
+                shouldShow = true;
+        }
+        
+        if (shouldShow) {
+            row.classList.remove('table-row-hidden');
+            row.classList.add('table-row-visible');
+            visibleCount++;
+        } else {
+            row.classList.add('table-row-hidden');
+            row.classList.remove('table-row-visible');
+        }
+    });
+    
+    // Update filter status
+    if (filterStatus) {
+        if (filterType === 'all') {
+            filterStatus.textContent = `Showing all ${totalCount} results`;
+        } else {
+            filterStatus.textContent = `Showing ${visibleCount} of ${totalCount} results (filtered by ${getFilterDisplayName(filterType)})`;
+        }
+    }
+}
+
+/**
+ * Gets a user-friendly display name for filter types
+ * @param {string} filterType - The filter type
+ * @returns {string} Display name
+ */
+function getFilterDisplayName(filterType) {
+    const names = {
+        'reachable': 'Reachable',
+        'manual-check': 'Manual Check Required',
+        'not-reachable': 'Not Reachable',
+        'video-removed': 'Videos Removed',
+        'https-upgraded': 'HTTPS Upgraded',
+        'youtube': 'YouTube URLs',
+        'http-only': 'HTTP URLs',
+        'errors': 'Errors/Issues',
+        'manual-test-available': 'Manual Test Available'
+    };
+    return names[filterType] || filterType;
 }
 
 // Make functions global so they can be called from HTML
@@ -1154,6 +1469,7 @@ window.handleIframeError = handleIframeError;
 window.reportManualResult = reportManualResult;
 window.updateTableResult = updateTableResult;
 window.getStatusClass = getStatusClass;
+window.filterResults = filterResults;
 
 /**
  * Checks if a URL is a YouTube video URL
