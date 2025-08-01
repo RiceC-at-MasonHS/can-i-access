@@ -1,207 +1,204 @@
-# School URL Accessibility Checker
+# Can I Access? 🌐
 
-A comprehensive tool designed to help educators and IT administrators test website accessibility from within school networks. This tool helps identify which educational resources and websites are reachable through your school's internet connection and firewall settings.
+**The essential toolkit for educational website accessibility testing in school networks**
 
-## 🎯 Purpose
-
-This tool is specifically designed for schools to:
-- Test if educational websites are accessible from the school network
-- Identify sites that may be blocked by firewalls or content filters
-- Provide clear, non-technical reports for educators and administrators
-- Help IT teams understand which resources teachers need access to
-
-## 🌐 Web-Based Tool (Recommended)
-
-The main tool is a browser-based application (`index.html`) that provides an easy-to-use interface for testing URL accessibility.
-
-### Features
-
-- **Multiple Input Methods**: Upload CSV files, paste URLs directly, or load from Google Sheets
-- **Smart Testing**: Uses multiple testing methods including favicon loading and direct fetch attempts
-- **Manual Verification**: Built-in iframe testing for uncertain results
-- **Detailed Logging**: Step-by-step logs showing exactly what was tested and why
-- **User-Friendly Reports**: Clear, color-coded results with explanations
-- **HTTP Security Detection**: Automatically flags HTTP-only sites that may cause browser warnings
-- **No Extensions Required**: Works entirely within the browser without additional software
-
-### How It Works
-
-The tool uses several testing methods to determine accessibility:
-
-1. **Favicon Test**: Attempts to load the site's favicon.ico file
-2. **No-CORS Fetch**: Tests direct connectivity while respecting browser security
-3. **HTTP Security Check**: Identifies URLs using insecure HTTP protocol
-4. **Manual Testing**: Provides iframe-based verification for uncertain results
-
-### ⚠️ HTTP Security Warnings
-
-The tool automatically detects and flags websites using HTTP (instead of HTTPS) protocol. These sites may cause issues in modern school environments:
-
-- **Browser Warnings**: Chrome, Firefox, and other browsers increasingly warn users about HTTP sites
-- **Mixed Content Issues**: HTTPS school portals may block HTTP resources
-- **Security Policies**: Many schools block HTTP sites as a security measure
-
-**Recommendation**: When possible, use HTTPS versions of educational websites or request site administrators to enable HTTPS.
-
-### Status Meanings
-
-- **🟢 Fully Accessible**: Site loads completely and is fully functional
-- **🟡 Partially Accessible**: Basic connectivity detected, but full access uncertain
-- **🔵 Possibly Reachable**: Connection attempted but limited by browser security
-- **🔴 Not Reachable**: Site appears blocked or unavailable from school network
-- **⏱️ Timeout**: Site is very slow or partially blocked
-- **⚠️ HTTP Warning**: Site is accessible but uses insecure HTTP protocol that may cause browser warnings
-
-## 🚀 Getting Started
-
-1. **Open the Tool**: Open the [GitHub Page](https://ricec-at-masonhs.github.io/can-i-access/) in any modern web browser
-2. **Add URLs**: Either:
-   - Upload a CSV file with a 'URL' column
-   - Paste URLs directly (one per line)
-   - Use the "Load Default URLs" button for testing
-3. **Run Tests**: Click "Check URLs" to start testing
-4. **Review Results**: View the detailed report with status and explanations
-5. **Manual Testing**: Use "Manual Test" buttons for uncertain results
-
-## 📝 Input Formats
-
-### CSV Upload
-Your CSV file must contain a column named "URL". Example:
-```csv
-URL,Description
-https://www.khanacademy.org,Math education
-https://scratch.mit.edu,Programming for kids
-https://www.google.com/classroom,Google Classroom
-```
-
-### Direct Input
-Paste URLs one per line:
-```
-https://www.example.com
-https://www.educational-site.org
-https://www.another-resource.edu
-```
-
-### Google Sheets Integration
-Update the `DEFAULT_GOOGLE_SHEET_CSV_URL` variable in `script.js` to point to your published Google Sheet CSV.
-
-## 🔧 Technical Details
-
-### Browser Requirements
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- JavaScript enabled
-- No additional extensions or plugins required
-
-### Network Testing Methods
-The tool is designed to work within browser security limitations:
-- Uses `fetch()` with `no-cors` mode to test connectivity
-- Employs favicon loading as a reliable connectivity indicator
-- Provides manual iframe testing for definitive results
-- Respects school firewall and security policies
-
-### Files Structure
-```
-├── index.html          # Main web interface
-├── script.js           # Core functionality and testing logic
-├── style.css           # Styling and responsive design
-├── test-urls.csv       # Sample URL list for testing
-├── python-script/      # Alternative Python-based tool
-│   └── url-check.py    # Command-line testing script
-└── README.md           # This documentation
-```
-
-## 🐍 Python Alternative
-
-For advanced users or situations where the web tool has limitations, a Python script is available:
-
-```bash
-cd python-script
-python url-check.py                           # Test all predefined Google Sheets
-python url-check.py --csv ../test-urls.csv    # Test custom CSV file  
-python url-check.py --sheet cyber1            # Test specific Google Sheet
-```
-
-The Python script provides additional features:
-- **Multiple Google Sheets**: Can process multiple predefined sheets (cyber1, cyber2, cyber3)
-- **Detailed HTML Reports**: Generates professional styled reports with summary cards
-- **HTTP Detection**: Flags insecure HTTP-only URLs with warnings
-- **Command Line Options**: Supports custom CSV files and specific sheets
-
-The Python script avoids browser security restrictions but requires:
-- Python 3.x installed
-- `requests` library (`pip install requests`)
-- Network access from the machine running the script
-- Command-line interface familiarity
-
-## 🎨 Customization
-
-### Adding Default URLs
-Edit the `DEFAULT_GOOGLE_SHEET_CSV_URL` in `script.js` to point to your own Google Sheet:
-
-1. Create a Google Sheet with a 'URL' column
-2. Go to File > Share > Publish to web
-3. Choose "Comma-separated values (.csv)" format
-4. Copy the generated URL
-5. Replace the placeholder URL in `script.js`
-
-### Styling
-Modify `style.css` to match your school's branding or accessibility requirements.
-
-## 🤝 Use Cases
-
-### For Educators
-- Test if lesson plan websites are accessible before class
-- Verify educational resources work from school computers
-- Identify alternative resources when primary sites are blocked
-- Spot potential browser security warnings for HTTP sites
-
-### For IT Administrators
-- Audit which educational sites are accessible
-- Generate reports for firewall policy updates
-- Test connectivity after network changes
-- Provide evidence for unblocking educational resources
-- Identify HTTP sites that may need security policy updates
-
-### For Curriculum Coordinators
-- Ensure digital resources in curriculum guides are accessible
-- Test new educational platforms before district-wide adoption
-- Verify accessibility across different school buildings
-- Identify security concerns with HTTP-only educational sites
-
-## 🔒 Privacy & Security
-
-- All testing is performed locally in your browser
-- No data is sent to external services (except for testing the URLs themselves)
-- Results are not stored or transmitted anywhere
-- Tool respects school network security policies
-
-## 📚 Troubleshooting
-
-### "Partially Accessible" Results
-- Use the "Manual Test" button to verify actual accessibility
-- Check if the site loads properly in the iframe
-- Some sites may block iframe embedding but work in regular tabs
-
-### "Not Reachable" Results
-- Verify the URL is correct and currently online
-- Check if the site requires specific protocols (HTTP vs HTTPS)
-- Contact IT team if educational resource appears incorrectly blocked
-
-### HTTP Warning Results
-- Site works but uses insecure HTTP protocol
-- Modern browsers may show security warnings to users
-- Consider finding HTTPS alternatives or requesting site upgrades
-- Test in actual classroom environment to verify student experience
-
-### Tool Not Working
-- Ensure JavaScript is enabled in your browser
-- Check browser console for error messages
-- Try refreshing the page and testing again
-
-## 📄 License
-
-This project is open source. See `LICENSE` file for details.
+[![GitHub Pages](https://img.shields.io/badge/Try%20It%20Now-GitHub%20Pages-blue)](https://ricec-at-masonhs.github.io/can-i-access/) [![Python CLI](https://img.shields.io/badge/Download-CLI%20Tool-green)](https://github.com/RiceC-at-MasonHS/can-i-access/tree/main/python-script) [![Documentation](https://img.shields.io/badge/📚-Full%20Docs-orange)](https://github.com/RiceC-at-MasonHS/can-i-access/tree/main/docs)
 
 ---
 
-**Note**: This tool is designed for educational and administrative use within school networks. Always follow your organization's IT policies and procedures when testing network accessibility.
+## 🎯 **What This Project Offers**
+
+**Can I Access?** provides two complementary tools to help educators, IT administrators, and curriculum planners test which educational websites work on school networks:
+
+### 🌐 **[Web Tool](https://ricec-at-masonhs.github.io/can-i-access/)** - *Quick & Easy*
+Perfect for immediate testing and demonstration
+- ✅ **Zero installation** - Works in any browser  
+- ✅ **Drag & drop CSV testing** - Instant results
+- ✅ **Mobile-friendly** - Test from anywhere
+- ✅ **Perfect for sharing** - Send colleagues a link
+
+### 💻 **[CLI Tool](python-script/)** - *Powerful & Professional*
+Ideal for batch processing and professional reporting
+- ✅ **Zero dependencies** - Uses only Python standard library
+- ✅ **Batch processing** - Test hundreds of URLs efficiently  
+- ✅ **Professional reports** - Generate HTML/CSV reports for IT
+- ✅ **Advanced filtering** - PII compliance and importance ranking
+
+---
+
+## 🚀 **Get Started in 30 Seconds**
+
+### **Quick Test** (No installation)
+1. 🌐 **[Open the web tool](https://ricec-at-masonhs.github.io/can-i-access/)**
+2. 📋 **Paste some URLs** or drag in a CSV file
+3. ▶️ **Click "Check URLs"** and see instant results!
+
+### **Professional Analysis** (For IT/power users)  
+1. 📥 **[Download the CLI tool](https://github.com/RiceC-at-MasonHS/can-i-access/archive/refs/heads/main.zip)**
+2. 📂 **Extract and navigate** to `can-i-access/python-script/`
+3. ⚡ **Run:** `python -m can_i_access --help`
+
+---
+
+## 🎓 **Perfect for Education**
+
+### **👩‍🏫 For Teachers**
+- **Before class:** Test if lesson websites work on school computers
+- **During planning:** Check educational resources for accessibility  
+- **Quick verification:** Use web tool for immediate answers
+
+### **👨‍💻 For IT Administrators**  
+- **Policy auditing:** Generate reports on blocked educational sites
+- **Bulk testing:** Process curriculum lists with [CLI tool](python-script/) 
+- **Compliance reporting:** Track sites requiring student PII
+
+### **📚 For Curriculum Coordinators**
+- **Resource validation:** Ensure digital curriculum works district-wide
+- **Platform evaluation:** Test new educational tools before adoption
+- **Standards compliance:** Generate professional reports for administration
+
+---
+
+## �️ **Core Features**
+
+### **Smart Testing Technology**
+- **Multi-method verification** - Favicon, HTTPS upgrade, direct connectivity
+- **YouTube detection** - Special handling for educational videos  
+- **Security compliance** - Flags HTTP sites that cause browser warnings
+- **Firewall respect** - Tests accessibility without bypass attempts
+
+### **Educational Focus** 
+- **Built-in curricula** - Cybersecurity, computer science, digital literacy
+- **Privacy compliance** - PII handling for COPPA/FERPA
+- **Professional reporting** - IT-friendly documentation and recommendations
+- **Bulk processing** - Handle entire curriculum lists efficiently
+
+### **Zero Hassle Deployment**
+- **Web version:** Works immediately in any browser
+- **CLI version:** [Zero external dependencies](docs/python-version/requirements.md) - just Python 3.6+
+- **School-friendly:** No administrative privileges needed
+- **Cross-platform:** Windows, macOS, Linux compatible
+
+---
+
+## 📊 **Choose Your Tool**
+
+| Feature | 🌐 **Web Tool** | 💻 **CLI Tool** |
+|---------|----------------|-----------------|
+| **Setup Time** | 0 seconds | 30 seconds |
+| **Best For** | Quick tests, demos | Batch processing, reports |
+| **CSV Support** | ✅ Drag & drop | ✅ Advanced processing |
+| **Mobile Friendly** | ✅ Yes | ❌ Desktop only |
+| **Bulk Testing** | Small lists | Hundreds of URLs |
+| **Professional Reports** | Basic | ✅ HTML/CSV/JSON |
+| **Privacy Filtering** | Manual | ✅ Automated |
+| **Curriculum Integration** | Manual upload | ✅ Built-in datasets |
+
+---
+
+## 🗂️ **Project Structure**
+
+```
+can-i-access/
+├── 🌐 index.html              # Web tool (GitHub Pages)
+├── 📜 script.js               # Web tool functionality  
+├── 🎨 style.css               # Web tool styling
+├── 💻 python-script/          # CLI tool directory
+│   ├── 📖 README.md           # CLI user guide
+│   ├── 🚀 setup.py            # Quick setup helper
+│   ├── 🎮 quick-start-demo.py # Interactive tutorial
+│   ├── 📊 sample-urls.csv     # Example CSV for testing
+│   └── 📦 can_i_access/       # Core CLI package
+├── 📚 docs/                   # Technical documentation
+│   ├── 📋 README.md           # Documentation organization guide
+│   ├── 🤝 shared/             # Common requirements (both tools)
+│   ├── 🌐 web-version/        # Browser tool requirements
+│   └── � python-version/      # CLI tool requirements & bug fixes
+├── 📊 cyber1-allow-list.csv   # Sample educational URLs
+└── 🧪 test-*.csv              # Various test datasets
+```
+
+---
+
+## 📖 **Documentation Deep Dive**
+
+### **📋 Requirements & Architecture**
+- **[Python CLI Requirements](docs/python-version/requirements.md)** - Zero-dependency architecture and features
+- **[Web Tool Requirements](docs/web-version/requirements.md)** - Browser compatibility and UI specifications
+- **[Project Overview](docs/shared/project-overview.md)** - Purpose, audiences, and value proposition
+
+### **🎯 Educational Integration**  
+- **[Core Functionality](docs/shared/core-functionality.md)** - URL testing, CSV processing, educational content
+- **[Quality Assurance](docs/python-version/quality-assurance.md)** - Testing and validation procedures
+- **[Bug Fixes & Development](docs/python-version/bug-fixes.md)** - Recent improvements and current issues
+
+### **📊 Professional Features**
+- **[CLI Quality Assurance](docs/python-version/quality-assurance.md)** - Professional testing requirements
+- **[Web Quality Assurance](docs/web-version/quality-assurance.md)** - Browser testing and validation
+- **[Documentation Organization](docs/README.md)** - Guide to reorganized requirements structure
+
+---
+
+## 🎨 **Real-World Usage Examples**
+
+### **Scenario 1: Teacher Prep** 
+```bash
+# Quick check before class
+🌐 Open web tool → Paste lesson URLs → Instant results
+```
+
+### **Scenario 2: IT Audit**
+```bash
+# Professional district-wide analysis  
+💻 Download CLI → Load curriculum CSV → Generate IT report
+python -m can_i_access --csv district-sites.csv --output audit.json
+python -m can_i_access report audit.json --format html -o it-report.html
+```
+
+### **Scenario 3: Curriculum Review**
+```bash
+# Filter by privacy requirements
+💻 python -m can_i_access --csv curriculum.csv --filter pii-required
+```
+
+---
+
+## 🔒 **Privacy & Security Promise**
+
+- ✅ **No data collection** - Everything runs locally  
+- ✅ **No external dependencies** - CLI uses only Python standard library
+- ✅ **Firewall friendly** - Respects school network policies  
+- ✅ **Open source** - Full transparency in testing methods
+- ✅ **Educational focus** - Built specifically for school environments
+
+---
+
+## 🤝 **Contributing & Support**
+
+### **Get Involved**
+- 🐛 **[Report Issues](https://github.com/RiceC-at-MasonHS/can-i-access/issues)** - Help improve the tools
+- 💡 **[Request Features](https://github.com/RiceC-at-MasonHS/can-i-access/discussions)** - Suggest educational integrations
+- 📖 **[Improve Documentation](docs/)** - Help other educators
+
+### **Need Help?**
+- 🌐 **Web tool issues:** Check browser console, try refresh
+- 💻 **CLI tool help:** Run `python -m can_i_access --man` for full manual
+- 📚 **Educational integration:** See [documentation](docs/) for curriculum guides
+
+---
+
+## 📄 **License**
+
+MIT License - Free for educational and commercial use. See [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+
+**🎓 Built for Education • 🔒 Privacy-First • 🌍 Open Source**
+
+[**🌐 Try Web Tool**](https://ricec-at-masonhs.github.io/can-i-access/) • [**💻 Download CLI**](python-script/) • [**📚 Read Docs**](docs/)
+
+*Making educational technology accessible in every classroom*
+
+</div>
