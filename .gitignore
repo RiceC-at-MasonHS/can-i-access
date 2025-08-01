@@ -207,3 +207,10 @@ can-i-access-report.html
 
 # any test csv files
 test-*.csv
+
+# CLI tool generated files
+python-script/test-*.html
+python-script/test-*.json
+python-script/*-results.json
+python-script/*-report.html
+python-script/sample-output.*
